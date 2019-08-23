@@ -1,6 +1,11 @@
 const ObjectId = require("mongodb").ObjectID;
+const queryDb = require('./queryDb')
 
-const dispatch = (database, unit) => {
+const dispatch = unit => {
+
+    
+
+
     const collection = database.collection(unit.collection)
     unit.documents.forEach(document => {
         switch (unit.method) {

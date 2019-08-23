@@ -2,12 +2,17 @@ const orders = require("../mapper/orders")
 const dispatch = require("./dispatch")
 const sendAction = require("./sendAction")
 
-const setState = (database, order, socket, io) => {
+const setState = (order, socket, io) => {
+
+    dispatch(order)
+
+
+
     orders(socket, order.data)[order.type].forEach(unit => {
-        dispatch(database, unit)
+        dispatch(unit)
     })
     setTimeout(() => {
-        sendAction(database, 'updateLocalState', io, order.data.number || order.data.room.number)
+        sendAction('updateLocalState', io, order.data.number || order.data.room.number)
     }, 300);
     
 }
