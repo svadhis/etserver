@@ -5,6 +5,7 @@ const ObjectId = require("mongodb").ObjectID;
 const port = process.env.PORT || 4001
 const index = require("./routes/index")
 const sendAction = require("./methods/sendAction")
+const sendState = require("./methods/sendState")
 const queryDb = require("./methods/queryDb")
 const app = express()
 app.use(index)
@@ -32,11 +33,9 @@ io.on("connection", socket => {
 					view: 'Lobby',
 					status: 'opened'
 				},
-				arg: '',
 				callback: () => {
-					// Join io room
 					socket.join(room)
-					sendAction(io, room)
+					sendState(io, room)
 				}
 			}
 		])
@@ -47,17 +46,27 @@ io.on("connection", socket => {
 		queryDb([
 			{
 				collection: 'rooms',
-				type: 'updateOne',
+				type: 'findOneAndUpdate',
 				filter: {
 					number: data.room
 				},
 				arg: {
 					$addToSet: { players: data.player }
 				},
-				callback: () => {
-					// Join io room
-					socket.join(data.room)
-					sendAction(io, room)
+				callback: doc => {
+					if (doc.value) {
+						socket.join(data.room)
+						sendState(io, data.room)
+					}
+					else {
+						socket.emit('flash', {
+							show: 1,
+							type: 'danger',
+							message: "Le salon " + data.room + " n'existe pas"
+						})
+					}
+					
+					
 				}
 			}
 		])
