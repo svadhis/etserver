@@ -1,16 +1,16 @@
 const queryDb = require('./queryDb')
 
-const sendState = async (io, roomNumber) => {
+const sendState = async (io, room, data) => {
     queryDb([
         {
             collection: 'rooms',
             type: 'findOne',
-            filter: {number: roomNumber},
+            filter: {number: room},
             arg: '',
             callback: doc => {
-                io.to(roomNumber).emit("action", {
+                io.to(room).emit("action", {
                     action: 'updateRoomState',
-                    payload: doc
+                    payload: {room: doc, data: data}
                 });
             }
     }])
