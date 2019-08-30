@@ -1,7 +1,7 @@
 const queryDb = require('./queryDb')
 
 const sendAction = async (io, action) => {
-    queryDb([
+    queryDb(
         {
             collection: 'rooms',
             type: 'findOne',
@@ -13,7 +13,7 @@ const sendAction = async (io, action) => {
                     payload: doc
                 });
             }
-    }])
+    })
 }
 
 module.exports = sendAction
