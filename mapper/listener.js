@@ -10,6 +10,7 @@ const socketListener = io => {
         // Create room
         socket.on("new-room", room => {
             queryDb({
+                collection: 'rooms',
                 type: 'insertOne',
                 filter: {
                     number: room,
@@ -32,6 +33,7 @@ const socketListener = io => {
         // Join room
         socket.on("join-room", data => {
             queryDb({
+                collection: 'rooms',
                 type: 'findOne',
                 filter: {
                     number: data.room
@@ -55,8 +57,12 @@ const socketListener = io => {
                         })
 
                         if (!playerExists || playerDisconnected) {
-                            !playerExists && players.push({id: socket.id, name: data.player})
+                            !playerExists ? players.push({
+                                id: socket.id,
+                                name: data.player
+                            }) : 
                             queryDb({
+                                collection: 'rooms',
                                 type: 'updateOne',
                                 filter: {
                                     number: data.room
@@ -103,6 +109,7 @@ const socketListener = io => {
         // Leave room
         socket.on("leave-room", () => {
             queryDb({
+                collection: 'rooms',
                 type: 'findOne',
                 filter: {
                     number: socket.room.number
@@ -115,6 +122,7 @@ const socketListener = io => {
                         }
                     })
                     queryDb({
+                        collection: 'rooms',
                         type: 'updateOne',
                         filter: {
                             number: socket.room.number
@@ -135,6 +143,25 @@ const socketListener = io => {
                     })    
                 }
             })
+        })
+
+        // Start game
+        socket.on("start-game", () => {
+            if (socket.room && socket.room.status === 'owner') {
+                queryDb({
+                    collection: 'rooms',
+                    type: 'updateOne',
+                    filter: {
+                        number: socket.room.number
+                    },
+                    arg: {
+                        $set: { status: 'started', view: 'Starting' }
+                    },
+                    callback: () => {
+                        sendState(io, socket.room.number)
+                    }
+                })
+            }
         })
         
         // Client disconnects
