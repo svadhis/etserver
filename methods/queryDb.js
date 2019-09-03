@@ -7,7 +7,12 @@ const queryDb = query => MongoClient.connect("mongodb://localhost:27017", { useN
 
     const db = client.db('etscope')
     try {
-        db.collection(query.collection)[query.type](query.filter, query.arg, query.options).then(query.callback)
+        if (query.type === 'aggregate') {
+            db.collection(query.collection)[query.type](query.filter, query.arg, query.options).toArray().then(query.callback)
+        }
+        else {
+            db.collection(query.collection)[query.type](query.filter, query.arg, query.options).then(query.callback)
+        }
     } catch (error) {
         console.log(error)
     }
