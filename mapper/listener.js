@@ -1,5 +1,7 @@
-const sendState = require("../methods/sendState")
 const queryDb = require("../methods/queryDb")
+const sendState = require("../methods/sendState")
+
+const setView = require('./queries/setView')
 
 let activeRooms = {}
 
@@ -9,21 +11,11 @@ const socketListener = io => {
 
     io.on("connection", socket => {
 
-        const setView = (view = activeRooms[socket.room].view, step = '') => {
+        const nextView = (view = activeRooms[socket.room].view, step = '') => {
             activeRooms[socket.room].view = view
             activeRooms[socket.room].step = step
 
-            queryDb({
-                collection: 'rooms',
-                type: 'replaceOne',
-                filter: {
-                    number: socket.room
-                },
-                arg: activeRooms[socket.room],
-                callback: () => {
-                    sendState(io, socket.room)
-                }
-            })
+            setView(io, socket.room, activeRooms[socket.room])
         }        
 
         // Set view
@@ -42,7 +34,7 @@ const socketListener = io => {
                                     problems.push(doc.phrase)
                                 })
                                 activeRooms[socket.room].problems = problems
-                                setView(view)
+                                nextView(view)
                             }
                         })  
                         break;
@@ -60,7 +52,7 @@ const socketListener = io => {
                         },
                         callback: doc => {
                             socket.room = doc
-                            setView()
+                            nextView()
                         }
                     })
                 } */
@@ -87,8 +79,8 @@ const socketListener = io => {
 
         // End step
         socket.on("end-step", () => {
-            activeRooms[socket.room].step = 'end'
-
+            
+            nextView()
             queryDb({
                 collection: 'rooms',
                 type: 'replaceOne',
@@ -113,7 +105,7 @@ const socketListener = io => {
             })
 
             activeRooms[socket.room].players.length === count &&
-            setView('Home')
+            nextView('Home')
         })
 
         // Create room

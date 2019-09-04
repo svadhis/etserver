@@ -1,6 +1,6 @@
 const queryDb = require('./queryDb')
 
-const sendState = async (io, room, data) => {
+const sendState = (io, room, data) => {
     queryDb({
         collection: 'rooms',
         type: 'findOne',
