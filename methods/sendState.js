@@ -10,7 +10,7 @@ const sendState = (io, room, data) => {
             io.to(room).emit("action", {
                 action: 'updateRoomState',
                 payload: {room: doc, data: data}
-            });
+            })
         }
     })
 }

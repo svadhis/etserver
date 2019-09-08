@@ -1,97 +1,54 @@
 const queryDb = require("../methods/queryDb")
 const sendState = require("../methods/sendState")
 
-const setView = require('./queries/setView')
+const getRooms = require('./queries/getRooms')
+const updateRoom = require('./queries/updateRoom')
 
-let activeRooms = {}
+const socketListener = async io => {
 
-let disconnected = []
+    let disconnected = []
 
-const socketListener = io => {
+    let activeRooms = await getRooms()
 
     io.on("connection", socket => {
 
-        const nextView = (view = activeRooms[socket.room].view, step = '') => {
-            activeRooms[socket.room].view = view
-            activeRooms[socket.room].step = step
+        // Next view
+        const nextView = (view, step) => {
+            activeRooms[socket.room].view = view || activeRooms[socket.room].view
+            activeRooms[socket.room].step = step || ''
 
-            setView(io, socket.room, activeRooms[socket.room])
+            updateRoom(io, socket.room, activeRooms[socket.room])
         }        
 
         // Set view
         socket.on("set-view", ([view, data]) => {
-
-            const handleData = () => {
-                switch (view) {
-                    case 'MakeProblems':
-                        queryDb({
-                            collection: 'problems',
-                            type: 'aggregate',
-                            filter: [{$sample: {size: data}}],
-                            callback: docs => {
-                                let problems = []
-                                docs.forEach(doc => {
-                                    problems.push(doc.phrase)
-                                })
-                                activeRooms[socket.room].problems = problems
-                                nextView(view)
-                            }
-                        })  
-                        break;
-                
-                    default:
-                        break;
-                }
-
-                /* if (data === '') {
+            switch (view) {
+                case 'MakeProblems':
+                    const players = activeRooms[socket.room].players
                     queryDb({
-                        collection: 'rooms',
-                        type: 'findOne',
-                        filter: {
-                            number: socket.room
-                        },
-                        callback: doc => {
-                            socket.room = doc
-                            nextView()
-                        }
-                    })
-                } */
-           
-            }    
+                        collection: 'problems',
+                        type: 'aggregate',
+                        filter: [{$sample: {size: players.length}}],
+                        callback: docs => {
 
-            if (!activeRooms[socket.room]) {
-                queryDb({
-                    collection: 'rooms',
-                    type: 'findOne',
-                    filter: {
-                        number: socket.room
-                    },
-                    callback: doc => {
-                        activeRooms[socket.room] = doc
-                        handleData()
-                    }
-                })
-            }
-            else {
-                handleData()
+                            players.forEach((player, i) => {
+                                player.problem = docs[i].phrase
+                            })
+
+                            activeRooms[socket.room].players = players
+                            nextView(view)
+                        }
+                    })  
+                    break
+            
+                default:
+                    break
             }
         })
 
         // End step
-        socket.on("end-step", () => {
-            
-            nextView()
-            queryDb({
-                collection: 'rooms',
-                type: 'replaceOne',
-                filter: {
-                    number: socket.room
-                },
-                arg: activeRooms[socket.room],
-                callback: () => {
-                    sendState(io, socket.room)
-                }
-            })
+        socket.on("end-step", () => { 
+            nextView(null, 'end')
         })
 
         // Send data
@@ -100,8 +57,11 @@ const socketListener = io => {
             activeRooms[socket.room].players.forEach(player => {
                 if (player.name === socket.name) {
                     player[data.step] = data.value
+                    count++
                 }
-                player[data.step] && count++
+                else {
+                    player[data.step] && count++
+                }   
             })
 
             activeRooms[socket.room].players.length === count &&
@@ -109,25 +69,28 @@ const socketListener = io => {
         })
 
         // Create room
-        socket.on("new-room", room => {
+        socket.on("new-room", roomNumber => {
+
+            let room = {
+                number: roomNumber,
+                owner: socket.id,
+                players: [],
+                view: 'Lobby',
+                step: '',
+                status: 'opened',
+                instructions: true
+            }
 
             queryDb({
                 collection: 'rooms',
                 type: 'insertOne',
-                filter: {
-                    number: room,
-                    owner: socket.id,
-                    players: [],
-                    view: 'Lobby',
-                    step: '',
-                    status: 'opened',
-                    instructions: true
-                },
+                filter: room,
                 callback: () => {
-                    socket.room = room
+                    activeRooms[roomNumber] = room
+                    socket.room = roomNumber
                     socket.status = 'owner'
-                    socket.join(room)
-                    sendState(io, room)
+                    socket.join(roomNumber)
+                    sendState(io, roomNumber)
                 }
             })
         })
@@ -135,115 +98,84 @@ const socketListener = io => {
         // Join room
         socket.on("join-room", data => {
 
-            queryDb({
-                collection: 'rooms',
-                type: 'findOne',
-                filter: {
-                    number: data.room
-                },
-                callback: doc => {
-                    console.log(doc)
-                    if (doc) {
-                        let players = doc.players.slice()
-                        let playerExists = 0
-                        let playerDisconnected = 0
-                        players.forEach(player => {
-                            if (player.name === data.player) {
-                                playerExists = 1
-                                disconnected.forEach((room, i) => {
-                                    if (room.number === data.room && room.name === data.player) {                           
-                                        playerDisconnected = 1
-                                        disconnected.splice[i, 1]
-                                    }
-                                })  
+            let room = activeRooms[data.room]
+
+            if (room) {
+                let players = room.players.slice()
+                let playerExists = 0
+                let playerDisconnected = 0
+                players.forEach(player => {
+                    if (player.name === data.player) {
+                        playerExists = 1
+                        disconnected.forEach((room, i) => {
+                            if (room.number === data.room && room.name === data.player) {                           
+                                playerDisconnected = 1
+                                disconnected.splice[i, 1]
                             }
-                        })
-
-                        if (!playerExists || playerDisconnected) {
-                            !playerExists && players.push({
-                                id: socket.id,
-                                name: data.player
-                            })
-                            queryDb({
-                                collection: 'rooms',
-                                type: 'updateOne',
-                                filter: {
-                                    number: data.room
-                                },
-                                arg: {
-                                    $set: { players: players }
-                                },
-                                callback: doc => {
-                                    socket.room = data.room
-                                    socket.status = 'player'
-                                    socket.name = data.player
-                                    socket.join(data.room)
-                                    sendState(io, data.room)
-
-                                    io.to(data.room).emit('flash', {
-                                        target: 'owner',
-                                        type: 'info',
-                                        message: data.player + " a rejoint le salon"
-                                    })
-                                }
-                            })
-                        }
-                        else {
-                            socket.emit('flash', {
-                                target: 'player',
-                                type: 'error',
-                                message: "Ce nom est déjà pris"
-                            })
-                        }
+                        })  
                     }
-                    else {
-                        socket.emit('flash', {
-                            target: 'player',
-                            type: 'error',
-                            message: "Le salon " + data.room + " n'existe pas"
-                        })
-                    }			
+                })
+
+                if (!playerExists || playerDisconnected) {
+                    !playerExists && players.push({
+                        id: socket.id,
+                        name: data.player
+                    })
+
+                    room.players = players
+
+                    socket.room = data.room
+                    socket.status = 'player'
+                    socket.name = data.player
+                    socket.join(data.room)
+                    
+                    updateRoom(io, data.room, room)
+
+                    io.to(data.room).emit('flash', {
+                        target: 'owner',
+                        type: 'info',
+                        message: data.player + " a rejoint le salon"
+                    })
                 }
-            })
+                else {
+                    socket.emit('flash', {
+                        target: 'player',
+                        type: 'error',
+                        message: "Ce nom est déjà pris"
+                    })
+                }
+            }
+            else {
+                socket.emit('flash', {
+                    target: 'player',
+                    type: 'error',
+                    message: "Le salon " + data.room + " n'existe pas"
+                })
+            }
         })
     
         // Leave room
         socket.on("leave-room", () => {
 
-            queryDb({
-                collection: 'rooms',
-                type: 'findOne',
-                filter: {
-                    number: socket.room
-                },
-                callback: doc => {
-                    let players = doc.players.slice()
-                    players.forEach((player, i) => {
-                        if (player.name === socket.name) {
-                            players.splice(i, 1)
-                        }
-                    })
-                    queryDb({
-                        collection: 'rooms',
-                        type: 'updateOne',
-                        filter: {
-                            number: socket.room
-                        },
-                        arg: {
-                            $set: { players: players }
-                        },
-                        callback: doc => {
-                            socket.leave(socket.room)
-                            sendState(io, socket.room)
+            let room = activeRooms[socket.room]
+            let players = room.players.slice()
 
-                            io.to(socket.room).emit('flash', {
-                                target: 'owner',
-                                type: 'info',
-                                message: socket.name + " a quitté le salon"
-                            })
-                        }
-                    })    
+            players.forEach((player, i) => {
+                if (player.name === socket.name) {
+                    players.splice(i, 1)
                 }
+            })
+
+            room.players = players
+
+            socket.leave(socket.room)
+           
+            updateRoom(io, socket.room, room)
+
+            io.to(socket.room).emit('flash', {
+                target: 'owner',
+                type: 'info',
+                message: socket.name + " a quitté le salon"
             })
         })
 
@@ -251,19 +183,13 @@ const socketListener = io => {
         socket.on("start-game", () => {
 
             if (socket.room) {
-                queryDb({
-                    collection: 'rooms',
-                    type: 'updateOne',
-                    filter: {
-                        number: socket.room
-                    },
-                    arg: {
-                        $set: { status: 'started', view: 'Starting' }
-                    },
-                    callback: () => {
-                        sendState(io, socket.room)
-                    }
-                })
+
+                let room = activeRooms[socket.room]
+
+                room.status = 'started'
+                room.view = 'CreatingStep'
+
+                updateRoom(io, socket.room, room)
             }
         })
 
@@ -271,19 +197,11 @@ const socketListener = io => {
         socket.on("toggle-instructions", bool => {
 
             if (socket.room) {
-                queryDb({
-                    collection: 'rooms',
-                    type: 'updateOne',
-                    filter: {
-                        number: socket.room
-                    },
-                    arg: {
-                        $set: { instructions: bool }
-                    },
-                    callback: () => {
-                        sendState(io, socket.room)
-                    }
-                })
+                let room = activeRooms[socket.room]
+
+                room.instructions = bool
+
+                updateRoom(io, socket.room, room)
             }
         })
         
