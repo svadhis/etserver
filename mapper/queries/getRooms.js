@@ -9,7 +9,11 @@ const getRooms = () => {
                 status: { $ne: 'closed' }
             },
             callback: rooms => {
-                resolve(rooms)
+                let output =  {}
+                rooms.forEach(room => {
+                    output[room.number] = room
+                })
+                resolve(output)
             }
         })
     })

@@ -10,6 +10,10 @@ const socketListener = async io => {
 
     let activeRooms = await getRooms()
 
+    let activeEntries = {}
+    
+    for (let [key, value] of Object.entries(activeRooms)) { activeEntries[key] = { drawing: 0, data: 0, vote: 0 } }
+
     io.on("connection", socket => {
 
         // Next view
@@ -22,17 +26,16 @@ const socketListener = async io => {
 
         // Set view
         socket.on("set-view", ([view, data]) => {
+            const players = activeRooms[socket.room].players
             switch (view) {
-                case 'MakeProblems':
-                    const players = activeRooms[socket.room].players
+                case 'MakeProblem':
                     queryDb({
                         collection: 'problems',
                         type: 'aggregate',
                         filter: [{$sample: {size: players.length}}],
                         callback: docs => {
-
                             players.forEach((player, i) => {
-                                player.problem = docs[i].phrase
+                                player.problem = docs[i]
                             })
 
                             activeRooms[socket.room].players = players
@@ -40,8 +43,21 @@ const socketListener = async io => {
                         }
                     })  
                     break
+
+                case 'GetProblem':
+                    const random = Math.floor(Math.random() * (players.length - 1)) + 1
+                    players.forEach((player, i) => {
+                        const index = i + random > players.length - 1 ? i + random - players.length : i + random
+                        let phrase = players[index].problem.phrase.split('**')
+                        player.entry = { problem: phrase[0] + ' ' + players[index].problem.value + ' ' + phrase[1] }
+
+                        activeRooms[socket.room].players = players
+                        nextView(view)
+                    })
+                    break
             
                 default:
+                    nextView(view)
                     break
             }
         })
@@ -54,18 +70,49 @@ const socketListener = async io => {
         // Send data
         socket.on("send-data", data => {
             let count = 0
-            activeRooms[socket.room].players.forEach(player => {
-                if (player.name === socket.name) {
-                    player[data.step] = data.value
-                    count++
-                }
-                else {
-                    player[data.step] && count++
-                }   
-            })
+            let room = activeRooms[socket.room]
 
-            activeRooms[socket.room].players.length === count &&
-            nextView('Home')
+            if (data.step === 'problem') {
+                room.players.forEach(player => {
+                    if (player.name === socket.name) {
+                        player[data.step].value = data.value
+                        count++
+                    }
+                    else {
+                        player[data.step].value && count++
+                    }   
+                })
+            }
+            else {
+                activeEntries[socket.room] = {
+                    ...activeEntries[socket.room],
+                    [data.step]: activeEntries[socket.room][data.step] + 1,
+                    [socket.name]: {
+                        ...activeEntries[socket.room][socket.name],
+                        [data.step]: data.value
+                    }
+                }
+
+                count = activeEntries[socket.room][data.step]
+
+                console.log(activeEntries[socket.room])
+            }
+
+            if (room.players.length === count) {
+                switch (room.view) {
+                    case 'MakeProblem':
+                        nextView('StartDrawing')
+                        break
+                
+                    case 'MakeDrawing':
+                        nextView('StartData')
+                        break
+
+                    case 'MakeData':
+                        nextView('PresentingStep')
+                        break
+                }
+            }   
         })
 
         // Create room
@@ -87,6 +134,7 @@ const socketListener = async io => {
                 filter: room,
                 callback: () => {
                     activeRooms[roomNumber] = room
+                    activeEntries[roomNumber] = { drawing: 0, data: 0, vote: 0 }
                     socket.room = roomNumber
                     socket.status = 'owner'
                     socket.join(roomNumber)
