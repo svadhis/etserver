@@ -26,7 +26,7 @@ const socketListener = async io => {
 
         // Set view
         socket.on("set-view", ([view, data]) => {
-            const players = activeRooms[socket.room].players
+            const players = activeRooms[socket.room].players.slice()
             switch (view) {
                 case 'MakeProblem':
                     queryDb({
@@ -37,7 +37,6 @@ const socketListener = async io => {
                             players.forEach((player, i) => {
                                 player.problem = docs[i]
                             })
-
                             activeRooms[socket.room].players = players
                             nextView(view)
                         }
@@ -79,7 +78,7 @@ const socketListener = async io => {
                         count++
                     }
                     else {
-                        player[data.step].value && count++
+                        player[data.step] && player[data.step].value && count++
                     }   
                 })
             }
@@ -94,8 +93,6 @@ const socketListener = async io => {
                 }
 
                 count = activeEntries[socket.room][data.step]
-
-                console.log(activeEntries[socket.room])
             }
 
             if (room.players.length === count) {
