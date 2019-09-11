@@ -4,6 +4,22 @@ const sendState = require("../methods/sendState")
 const getRooms = require('./queries/getRooms')
 const updateRoom = require('./queries/updateRoom')
 
+const shuffle = array => {
+    let currentIndex = array.length
+	let temporaryValue, randomIndex
+
+	while (0 !== currentIndex) {
+		randomIndex = Math.floor(Math.random() * currentIndex)
+        currentIndex -= 1
+        
+		temporaryValue = array[currentIndex]
+		array[currentIndex] = array[randomIndex]
+		array[randomIndex] = temporaryValue
+	}
+
+	return array
+  }
+
 const socketListener = async io => {
 
     let disconnected = []
@@ -12,7 +28,7 @@ const socketListener = async io => {
 
     let activeEntries = {}
     
-    for (let [key, value] of Object.entries(activeRooms)) { activeEntries[key] = { drawing: 0, data: 0, vote: 0 } }
+    for (let key of Object.keys(activeRooms)) { activeEntries[key] = {steps: {drawing: 0, data: 0, vote: 0}} }
 
     io.on("connection", socket => {
 
@@ -26,7 +42,7 @@ const socketListener = async io => {
 
         // Set view
         socket.on("set-view", ([view, data]) => {
-            const players = activeRooms[socket.room].players.slice()
+            let players = activeRooms[socket.room].players.slice()
             switch (view) {
                 case 'MakeProblem':
                     queryDb({
@@ -48,11 +64,23 @@ const socketListener = async io => {
                     players.forEach((player, i) => {
                         const index = i + random > players.length - 1 ? i + random - players.length : i + random
                         let phrase = players[index].problem.phrase.split('**')
-                        player.entry = { problem: phrase[0] + ' ' + players[index].problem.value + ' ' + phrase[1] }
-
-                        activeRooms[socket.room].players = players
-                        nextView(view)
+                        player.entry = { problem: phrase[0] + ' ' + players[index].problem.value + ' ' + phrase[1] } 
                     })
+                    activeRooms[socket.room].players = players
+                    nextView(view)
+                    break
+
+                case 'StartPresentation':
+                    let presenting = activeRooms[socket.room].presentOrder[0]
+                    activeRooms[socket.room].presenting = presenting
+                    activeRooms[socket.room].presentation = { ...activeEntries[socket.room][presenting], steps: [0, 0, 0] }
+                    nextView(view)
+                    break
+
+                case 'MakeVote':
+                    activeRooms[socket.room].presentation = []
+                    activeRooms[socket.room].solutions = activeEntries[socket.room]
+                    nextView(view)
                     break
             
                 default:
@@ -82,17 +110,35 @@ const socketListener = async io => {
                     }   
                 })
             }
+            else if (data.step === 'presentation') {
+                if (data.value === 'end') {
+                    room.presentOrder.shift()
+                }
+                else {
+                    room.presentation.steps[data.value] = 1
+                }   
+                count = room.players.length
+            }
+            else if (data.step === 'vote') {
+                for (let [key, value] of Object.keys(data.value)) { room.results[key] += value }
+                room.voted++
+
+                count = room.voted
+            }
             else {
                 activeEntries[socket.room] = {
                     ...activeEntries[socket.room],
-                    [data.step]: activeEntries[socket.room][data.step] + 1,
+                    steps: {
+                        ...activeEntries[socket.room].steps,
+                        [data.step]: activeEntries[socket.room].steps[data.step] + 1
+                    },
                     [socket.name]: {
                         ...activeEntries[socket.room][socket.name],
                         [data.step]: data.value
                     }
                 }
 
-                count = activeEntries[socket.room][data.step]
+                count = activeEntries[socket.room].steps[data.step]
             }
 
             if (room.players.length === count) {
@@ -108,6 +154,15 @@ const socketListener = async io => {
                     case 'MakeData':
                         nextView('PresentingStep')
                         break
+
+                    case 'MakePresentation':
+                        data.value === 'end' ? nextView('EndPresentation') : nextView()
+                        break
+                        
+                    case 'MakeVote':
+                        nextView('Results')
+                        break
+                    
                 }
             }   
         })
@@ -122,6 +177,12 @@ const socketListener = async io => {
                 view: 'Lobby',
                 step: '',
                 status: 'opened',
+                presentOrder: [],
+                presenting: '',
+                presentation: {},
+                solutions: {},
+                results: {},
+                voted: 0,
                 instructions: true
             }
 
@@ -131,7 +192,7 @@ const socketListener = async io => {
                 filter: room,
                 callback: () => {
                     activeRooms[roomNumber] = room
-                    activeEntries[roomNumber] = { drawing: 0, data: 0, vote: 0 }
+                    activeEntries[roomNumber] = {steps: {drawing: 0, data: 0, vote: 0}}
                     socket.room = roomNumber
                     socket.status = 'owner'
                     socket.join(roomNumber)
@@ -233,6 +294,9 @@ const socketListener = async io => {
 
                 room.status = 'started'
                 room.view = 'CreatingStep'
+                room.presentOrder = shuffle(room.players.slice()).map(player => player.name)
+
+                console.log(room.presentOrder)
 
                 updateRoom(io, socket.room, room)
             }
