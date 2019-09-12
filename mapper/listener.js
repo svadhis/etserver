@@ -20,7 +20,7 @@ const shuffle = array => {
 	return array
   }
 
-const socketListener = async io => {
+module.exports = async io => {
 
     let disconnected = []
 
@@ -37,6 +37,7 @@ const socketListener = async io => {
             activeRooms[socket.room].view = view || activeRooms[socket.room].view
             activeRooms[socket.room].step = step || ''
 
+            console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
             updateRoom(io, socket.room, activeRooms[socket.room])
         }        
 
@@ -71,7 +72,7 @@ const socketListener = async io => {
                     break
 
                 case 'StartPresentation':
-                    let presenting = activeRooms[socket.room].presentOrder[0]
+                    let presenting = activeRooms[socket.room].presentOrder.shift()
                     activeRooms[socket.room].presenting = presenting
                     activeRooms[socket.room].presentation = { ...activeEntries[socket.room][presenting], steps: [0, 0, 0] }
                     nextView(view)
@@ -111,16 +112,14 @@ const socketListener = async io => {
                 })
             }
             else if (data.step === 'presentation') {
-                if (data.value === 'end') {
-                    room.presentOrder.shift()
-                }
-                else {
+                if (data.value !== 'end') {
                     room.presentation.steps[data.value] = 1
                 }   
+
                 count = room.players.length
             }
             else if (data.step === 'vote') {
-                for (let [key, value] of Object.keys(data.value)) { room.results[key] += value }
+                for (let [key, value] of Object.entries(data.value)) { room.results[key] = room.results[key] + value || value }
                 room.voted++
 
                 count = room.voted
@@ -140,6 +139,8 @@ const socketListener = async io => {
 
                 count = activeEntries[socket.room].steps[data.step]
             }
+            
+            console.log(socket.room + ' :: RECEIVED DATA [ ' + data.step + ' ]', data.value)
 
             if (room.players.length === count) {
                 switch (room.view) {
@@ -160,6 +161,8 @@ const socketListener = async io => {
                         break
                         
                     case 'MakeVote':
+                        console.log(socket.room + ' :: STEP CLOSED [ ' + data.step + ' ]')
+                        console.log(room.results)
                         nextView('Results')
                         break
                     
@@ -195,6 +198,9 @@ const socketListener = async io => {
                     activeEntries[roomNumber] = {steps: {drawing: 0, data: 0, vote: 0}}
                     socket.room = roomNumber
                     socket.status = 'owner'
+
+                    console.log(roomNumber + ' :: ROOM CREATED')
+
                     socket.join(roomNumber)
                     sendState(io, roomNumber)
                 }
@@ -233,8 +239,10 @@ const socketListener = async io => {
                     socket.room = data.room
                     socket.status = 'player'
                     socket.name = data.player
-                    socket.join(data.room)
+
+                    console.log(data.room + ' :: JOINED [ ' + data.player + ' ]')
                     
+                    socket.join(data.room)
                     updateRoom(io, data.room, room)
 
                     io.to(data.room).emit('flash', {
@@ -274,8 +282,9 @@ const socketListener = async io => {
 
             room.players = players
 
-            socket.leave(socket.room)
-           
+            console.log(socket.room + ' :: LEFT [ ' + socket.name + ' ]')
+
+            socket.leave(socket.room)      
             updateRoom(io, socket.room, room)
 
             io.to(socket.room).emit('flash', {
@@ -296,7 +305,7 @@ const socketListener = async io => {
                 room.view = 'CreatingStep'
                 room.presentOrder = shuffle(room.players.slice()).map(player => player.name)
 
-                console.log(room.presentOrder)
+                console.log(socket.room + ' :: GAME STARTED')
 
                 updateRoom(io, socket.room, room)
             }
@@ -312,6 +321,16 @@ const socketListener = async io => {
 
                 updateRoom(io, socket.room, room)
             }
+        })
+
+        // Restart room
+        socket.on("restart", () => {
+
+            activeRooms[socket.room] = {
+
+            }
+
+            updateRoom(io, socket.room, activeRooms[socket.room])
         })
         
         // Client disconnects
@@ -331,5 +350,3 @@ const socketListener = async io => {
     })
 
 }
-
-module.exports = socketListener

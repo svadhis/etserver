@@ -1,6 +1,6 @@
 const queryDb = require('./queryDb')
 
-const sendState = (io, room, data) => {
+module.exports = (io, room, data) => {
     queryDb({
         collection: 'rooms',
         type: 'findOne',
@@ -14,5 +14,3 @@ const sendState = (io, room, data) => {
         }
     })
 }
-
-module.exports = sendState

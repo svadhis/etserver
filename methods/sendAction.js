@@ -1,6 +1,6 @@
 const queryDb = require('./queryDb')
 
-const sendAction = async (io, action) => {
+module.exports = async (io, action) => {
     queryDb(
         {
             collection: 'rooms',
@@ -15,5 +15,3 @@ const sendAction = async (io, action) => {
             }
     })
 }
-
-module.exports = sendAction
