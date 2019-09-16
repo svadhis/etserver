@@ -186,7 +186,8 @@ module.exports = async io => {
                 solutions: {},
                 results: {},
                 voted: 0,
-                instructions: true
+                instructions: true,
+                subtitles: true
             }
 
             queryDb({
@@ -318,6 +319,18 @@ module.exports = async io => {
                 let room = activeRooms[socket.room]
 
                 room.instructions = bool
+
+                updateRoom(io, socket.room, room)
+            }
+        })
+
+        // Toggle subtitles
+        socket.on("toggle-subtitles", bool => {
+
+            if (socket.room) {
+                let room = activeRooms[socket.room]
+
+                room.subtitles = bool
 
                 updateRoom(io, socket.room, room)
             }
