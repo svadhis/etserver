@@ -74,8 +74,13 @@ module.exports = async io => {
                 case 'StartPresentation':
                     let presenting = activeRooms[socket.room].presentOrder.shift()
                     activeRooms[socket.room].presenting = presenting
-                    activeRooms[socket.room].presentation = { ...activeEntries[socket.room][presenting], steps: [0, 0, 0] }
-                    nextView(view)
+                    
+                    players.forEach(player => {
+                        if (presenting === player.name) {
+                            activeRooms[socket.room].presentation = { ...activeEntries[socket.room][presenting], problem: player.entry.problem, steps: [0, 0, 0] }
+                            nextView(view)
+                        }
+                    })    
                     break
 
                 case 'MakeVote':
@@ -196,7 +201,7 @@ module.exports = async io => {
                 filter: room,
                 callback: () => {
                     activeRooms[roomNumber] = room
-                    activeEntries[roomNumber] = {steps: {drawing: 0, data: 0, vote: 0}}
+                    activeEntries[roomNumber] = {problem: {}, steps: {drawing: 0, data: 0, vote: 0}}
                     socket.room = roomNumber
                     socket.status = 'owner'
 
