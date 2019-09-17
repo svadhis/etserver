@@ -102,15 +102,15 @@ module.exports = async io => {
 
         // Send data
         socket.on("send-data", data => {
-            let count = 0
             let room = activeRooms[socket.room]
+            let count = 0
 
             if (data.step === 'problem') {
                 room.players.forEach(player => {
                     if (player.name === socket.name) {
                         player[data.step].value = data.value
                         count++
-                    }
+                    }  
                     else {
                         player[data.step] && player[data.step].value && count++
                     }   
@@ -144,10 +144,12 @@ module.exports = async io => {
 
                 count = activeEntries[socket.room].steps[data.step]
             }
-            
-            console.log(socket.room + ' :: RECEIVED DATA [ ' + data.step + ' ]', data.value)
 
-            if (room.players.length === count) {
+            activeRooms[socket.room].players = room.players
+            
+            console.log(socket.room + ' :: RECEIVED DATA (' + count + '/' + room.players.length  + ') [ ' + data.step + ' ]', data.value)
+
+            if (activeRooms[socket.room].players.length === count) {
                 switch (room.view) {
                     case 'MakeProblem':
                         nextView('StartDrawing')
@@ -192,7 +194,8 @@ module.exports = async io => {
                 results: {},
                 voted: 0,
                 instructions: true,
-                subtitles: true
+                subtitles: true,
+                count: 0
             }
 
             queryDb({
@@ -272,6 +275,22 @@ module.exports = async io => {
                     message: "Le salon " + data.room + " n'existe pas"
                 })
             }
+        })
+
+        // Heartbeat
+        socket.on("heartbeat", data => { 
+
+            if (data.status === 'player') {
+                socket.room = data.room
+                socket.status = 'player'
+                socket.name = data.player
+            }
+            else {
+                socket.room = data.room
+                socket.status = 'owner'
+            }
+
+            socket.join(data.room)
         })
     
         // Leave room
