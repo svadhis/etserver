@@ -1,6 +1,7 @@
 const MongoClient = require("mongodb").MongoClient
 
-module.exports = query => MongoClient.connect("mongodb://localhost:27017", { useNewUrlParser: true }, function(error, client) {
+// "mongodb://localhost:27017"
+module.exports = query => MongoClient.connect("mongodb+srv://g3k:6VSa7J6pTCsNEfyC@cluster0-jge1t.mongodb.net/test?retryWrites=true&w=majority", { useNewUrlParser: true }, function(error, client) {
     if (error) return error
 
     const db = client.db('game-3000')

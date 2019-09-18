@@ -37,9 +37,9 @@ module.exports = async io => {
             activeRooms[socket.room].view = view || activeRooms[socket.room].view
             activeRooms[socket.room].step = step || ''
 
-            console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
+            view && console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
             updateRoom(io, socket.room, activeRooms[socket.room])
-        }        
+        }  
 
         // Set view
         socket.on("set-view", ([view, data]) => {
@@ -174,7 +174,7 @@ module.exports = async io => {
                         break
                     
                 }
-            }   
+            } 
         })
 
         // Create room
@@ -282,15 +282,18 @@ module.exports = async io => {
 
             if (data.status === 'player') {
                 socket.room = data.room
-                socket.status = 'player'
+                socket.status = data.status
                 socket.name = data.player
             }
             else {
                 socket.room = data.room
-                socket.status = 'owner'
+                socket.status = data.status
             }
-
+            console.log(data)
+            console.log(socket.room + ' :: RECONNECTED [ ' + socket.name + ' ]')
+        
             socket.join(data.room)
+            nextView()
         })
     
         // Leave room
@@ -384,6 +387,7 @@ module.exports = async io => {
             }
             console.log("Client disconnected")
         })
+
     })
 
 }
