@@ -20,11 +20,11 @@ const shuffle = array => {
 	return array
   }
 
-module.exports = async io => {
+module.exports = async (io, db) => {
 
     let disconnected = []
 
-    let activeRooms = await getRooms()
+    let activeRooms = await getRooms(db)
 
     let activeEntries = {}
     
@@ -38,7 +38,7 @@ module.exports = async io => {
             activeRooms[socket.room].step = step || ''
 
             view && console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
-            updateRoom(io, socket.room, activeRooms[socket.room])
+            updateRoom(db, io, socket.room, activeRooms[socket.room])
         }  
 
         const createRoom = roomNumber => {
@@ -61,7 +61,7 @@ module.exports = async io => {
                     count: 0
                 }
 
-                queryDb({
+                queryDb(db, {
                     collection: 'rooms',
                     type: 'insertOne',
                     filter: room,
@@ -74,7 +74,7 @@ module.exports = async io => {
                         console.log(roomNumber + ' :: ROOM CREATED')
 
                         socket.join(roomNumber)
-                        sendState(io, roomNumber)
+                        sendState(db, io, roomNumber)
                         resolve()
                     }
                 })
@@ -117,7 +117,7 @@ module.exports = async io => {
                     console.log(data.room + ' :: JOINED [ ' + data.player + ' ]')
                     
                     playerSocket.join(data.room)
-                    updateRoom(io, data.room, room)
+                    updateRoom(db, io, data.room, room)
 
                     io.to(data.room).emit('flash', {
                         target: 'owner',
@@ -147,7 +147,7 @@ module.exports = async io => {
             let players = activeRooms[socket.room].players.slice()
             switch (view) {
                 case 'MakeProblem':
-                    queryDb({
+                    queryDb(db, {
                         collection: 'problems',
                         type: 'aggregate',
                         filter: [{$sample: {size: players.length}}],
@@ -324,7 +324,7 @@ module.exports = async io => {
             console.log(socket.room + ' :: LEFT [ ' + socket.name + ' ]')
 
             socket.leave(socket.room)      
-            updateRoom(io, socket.room, room)
+            updateRoom(db, io, socket.room, room)
 
             io.to(socket.room).emit('flash', {
                 target: 'owner',
@@ -346,7 +346,7 @@ module.exports = async io => {
 
                 console.log(socket.room + ' :: GAME STARTED')
 
-                updateRoom(io, socket.room, room)
+                updateRoom(db, io, socket.room, room)
             }
         })
 
@@ -358,7 +358,7 @@ module.exports = async io => {
 
                 room.instructions = bool
 
-                updateRoom(io, socket.room, room)
+                updateRoom(db, io, socket.room, room)
             }
         })
 
@@ -370,7 +370,7 @@ module.exports = async io => {
 
                 room.subtitles = bool
 
-                updateRoom(io, socket.room, room)
+                updateRoom(db, io, socket.room, room)
             }
         })
 

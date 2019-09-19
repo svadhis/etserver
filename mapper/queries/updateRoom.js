@@ -1,7 +1,7 @@
 const queryDb = require('../../methods/queryDb')
 
-const updateRoom = (io, number, room) => {
-    queryDb({
+const updateRoom = (db, io, number, room) => {
+    queryDb(db, {
         collection: 'rooms',
         type: 'replaceOne',
         filter: {

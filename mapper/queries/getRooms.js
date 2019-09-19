@@ -1,8 +1,8 @@
 const queryDb = require('../../methods/queryDb')
 
-const getRooms = () => {
+const getRooms = db => {
     return new Promise((resolve) => {
-        queryDb({
+        queryDb(db, {
             collection: 'rooms',
             type: 'find',
             filter: {

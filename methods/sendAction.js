@@ -1,7 +1,7 @@
 const queryDb = require('./queryDb')
 
-module.exports = async (io, action) => {
-    queryDb(
+module.exports = async (db, io, action) => {
+    queryDb(db, 
         {
             collection: 'rooms',
             type: 'findOne',
