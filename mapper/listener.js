@@ -41,6 +41,107 @@ module.exports = async io => {
             updateRoom(io, socket.room, activeRooms[socket.room])
         }  
 
+        const createRoom = roomNumber => {
+            return new Promise((resolve) => {
+                let room = {
+                    number: roomNumber,
+                    owner: socket.id,
+                    players: [],
+                    view: 'Lobby',
+                    step: '',
+                    status: 'opened',
+                    presentOrder: [],
+                    presenting: '',
+                    presentation: {},
+                    solutions: {},
+                    results: {},
+                    voted: 0,
+                    instructions: true,
+                    subtitles: true,
+                    count: 0
+                }
+
+                queryDb({
+                    collection: 'rooms',
+                    type: 'insertOne',
+                    filter: room,
+                    callback: () => {
+                        activeRooms[roomNumber] = room
+                        activeEntries[roomNumber] = {problem: {}, steps: {drawing: 0, data: 0, vote: 0}}
+                        socket.room = roomNumber
+                        socket.status = 'owner'
+
+                        console.log(roomNumber + ' :: ROOM CREATED')
+
+                        socket.join(roomNumber)
+                        sendState(io, roomNumber)
+                        resolve()
+                    }
+                })
+            })
+        }
+
+        const joinRoom = (data, s) => {
+            let room = activeRooms[data.room]
+
+            let playerSocket = s || socket
+
+            if (room) {
+                let players = room.players.slice()
+                let playerExists = 0
+                let playerDisconnected = 0
+                players.forEach(player => {
+                    if (player.name === data.player) {
+                        playerExists = 1
+                        disconnected.forEach((room, i) => {
+                            if (room.number === data.room && room.name === data.player) {                           
+                                playerDisconnected = 1
+                                disconnected.splice[i, 1]
+                            }
+                        })  
+                    }
+                })
+
+                if (!playerExists || playerDisconnected) {
+                    !playerExists && players.push({
+                        id: playerSocket.id,
+                        name: data.player
+                    })
+
+                    room.players = players
+
+                    playerSocket.room = data.room
+                    playerSocket.status = 'player'
+                    playerSocket.name = data.player
+
+                    console.log(data.room + ' :: JOINED [ ' + data.player + ' ]')
+                    
+                    playerSocket.join(data.room)
+                    updateRoom(io, data.room, room)
+
+                    io.to(data.room).emit('flash', {
+                        target: 'owner',
+                        type: 'info',
+                        message: data.player + " a rejoint le salon"
+                    })
+                }
+                else {
+                    playerSocket.emit('flash', {
+                        target: 'player',
+                        type: 'error',
+                        message: "Ce nom est déjà pris"
+                    })
+                }
+            }
+            else {
+                playerSocket.emit('flash', {
+                    target: 'player',
+                    type: 'error',
+                    message: "Le salon " + data.room + " n'existe pas"
+                })
+            }
+        }
+
         // Set view
         socket.on("set-view", ([view, data]) => {
             let players = activeRooms[socket.room].players.slice()
@@ -179,102 +280,12 @@ module.exports = async io => {
 
         // Create room
         socket.on("new-room", roomNumber => {
-
-            let room = {
-                number: roomNumber,
-                owner: socket.id,
-                players: [],
-                view: 'Lobby',
-                step: '',
-                status: 'opened',
-                presentOrder: [],
-                presenting: '',
-                presentation: {},
-                solutions: {},
-                results: {},
-                voted: 0,
-                instructions: true,
-                subtitles: true,
-                count: 0
-            }
-
-            queryDb({
-                collection: 'rooms',
-                type: 'insertOne',
-                filter: room,
-                callback: () => {
-                    activeRooms[roomNumber] = room
-                    activeEntries[roomNumber] = {problem: {}, steps: {drawing: 0, data: 0, vote: 0}}
-                    socket.room = roomNumber
-                    socket.status = 'owner'
-
-                    console.log(roomNumber + ' :: ROOM CREATED')
-
-                    socket.join(roomNumber)
-                    sendState(io, roomNumber)
-                }
-            })
+            createRoom(roomNumber)
         })
     
         // Join room
         socket.on("join-room", data => {
-
-            let room = activeRooms[data.room]
-
-            if (room) {
-                let players = room.players.slice()
-                let playerExists = 0
-                let playerDisconnected = 0
-                players.forEach(player => {
-                    if (player.name === data.player) {
-                        playerExists = 1
-                        disconnected.forEach((room, i) => {
-                            if (room.number === data.room && room.name === data.player) {                           
-                                playerDisconnected = 1
-                                disconnected.splice[i, 1]
-                            }
-                        })  
-                    }
-                })
-
-                if (!playerExists || playerDisconnected) {
-                    !playerExists && players.push({
-                        id: socket.id,
-                        name: data.player
-                    })
-
-                    room.players = players
-
-                    socket.room = data.room
-                    socket.status = 'player'
-                    socket.name = data.player
-
-                    console.log(data.room + ' :: JOINED [ ' + data.player + ' ]')
-                    
-                    socket.join(data.room)
-                    updateRoom(io, data.room, room)
-
-                    io.to(data.room).emit('flash', {
-                        target: 'owner',
-                        type: 'info',
-                        message: data.player + " a rejoint le salon"
-                    })
-                }
-                else {
-                    socket.emit('flash', {
-                        target: 'player',
-                        type: 'error',
-                        message: "Ce nom est déjà pris"
-                    })
-                }
-            }
-            else {
-                socket.emit('flash', {
-                    target: 'player',
-                    type: 'error',
-                    message: "Le salon " + data.room + " n'existe pas"
-                })
-            }
+            joinRoom(data)
         })
 
         // Heartbeat
@@ -364,13 +375,22 @@ module.exports = async io => {
         })
 
         // Restart room
-        socket.on("restart", () => {
+        socket.on("restart", async newRoom => {
+            let oldRoom = socket.room
 
-            activeRooms[socket.room] = {
+            let clients = io.sockets.adapter.rooms[oldRoom].sockets
 
+            await createRoom(newRoom)
+
+            for (var clientId in clients ) {
+                let clientSocket = io.sockets.connected[clientId]
+
+                if (clientSocket.status === 'player') {
+                    clientSocket.leave(oldRoom)
+                    joinRoom({room: newRoom, player: clientSocket.name}, clientSocket)
+                }
             }
 
-            updateRoom(io, socket.room, activeRooms[socket.room])
         })
         
         // Client disconnects
