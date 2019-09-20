@@ -34,15 +34,17 @@ module.exports = async (io, db) => {
 
         // Next view
         const nextView = (view, step) => {
-            activeRooms[socket.room].view = view || activeRooms[socket.room].view
-            activeRooms[socket.room].step = step || ''
+            let room = activeRooms[socket.room]
+
+            room.view = view || room.view
+            room.step = step || ''
 
             if (view) {
-                activeRooms[socket.room].loaded = 0
-                console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
+                room.loaded = 0
+                console.log(socket.room + ' :: UPDATED [ view: ' + room.view + ', step: ' + room.step + ' ]')
             }
             
-            updateRoom(db, io, socket.room, activeRooms[socket.room])
+            updateRoom(db, io, socket.room, room)
         }  
 
         const createRoom = roomNumber => {
