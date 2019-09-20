@@ -37,7 +37,11 @@ module.exports = async (io, db) => {
             activeRooms[socket.room].view = view || activeRooms[socket.room].view
             activeRooms[socket.room].step = step || ''
 
-            view && console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
+            if (view) {
+                activeRooms[socket.room].loaded = 0
+                console.log(socket.room + ' :: UPDATED [ view: ' + activeRooms[socket.room].view + ', step: ' + activeRooms[socket.room].step + ' ]')
+            }
+            
             updateRoom(db, io, socket.room, activeRooms[socket.room])
         }  
 
@@ -58,7 +62,8 @@ module.exports = async (io, db) => {
                     voted: 0,
                     instructions: true,
                     subtitles: true,
-                    count: 0
+                    count: 0,
+                    loaded: 0
                 }
 
                 queryDb(db, {
@@ -143,7 +148,7 @@ module.exports = async (io, db) => {
         }
 
         // Set view
-        socket.on("set-view", ([view, data]) => {
+        socket.on("set-view", view => {
             let players = activeRooms[socket.room].players.slice()
             switch (view) {
                 case 'MakeProblem':
@@ -369,6 +374,18 @@ module.exports = async (io, db) => {
                 let room = activeRooms[socket.room]
 
                 room.subtitles = bool
+
+                updateRoom(db, io, socket.room, room)
+            }
+        })
+
+        // Set loaded state
+        socket.on("loaded", () => {
+
+            if (socket.room) {
+                let room = activeRooms[socket.room]
+
+                room.loaded = 1
 
                 updateRoom(db, io, socket.room, room)
             }
