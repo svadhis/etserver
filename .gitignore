@@ -61,4 +61,4 @@ typings/
 .next
 
 # db credentials
-# database/data/
+database/config/
