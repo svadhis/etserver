@@ -61,4 +61,4 @@ typings/
 .next
 
 # db credentials
-db-data.js
+# database/data/

@@ -1,6 +1,6 @@
 // Script to initialize and populate database
 
-const db = require("./db-data")
+const db = require("./database/config/db")
 
 const queryDb = require("./methods/queryDb")
 const problems = require("./database/problems")
@@ -15,4 +15,5 @@ MongoClient.connect(db.uri, { useNewUrlParser: true })
     callback: () => {
         console.log('Successfully populated database')
         process.exit()
-    }}))
+    }
+}))
