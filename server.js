@@ -2,6 +2,7 @@ const express = require("express")
 const http = require("http")
 const socketIo = require("socket.io")
 const port = process.env.PORT || 4001
+const db = require("./db-data")
 const index = require("./routes/index")
 const socketListener = require("./mapper/listener")
 const app = express()
@@ -11,8 +12,7 @@ const io = socketIo(server)
 
 const MongoClient = require("mongodb").MongoClient
 
-// "mongodb://localhost:27017"
-MongoClient.connect("mongodb+srv://g3k:6VSa7J6pTCsNEfyC@cluster0-jge1t.mongodb.net/test?retryWrites=true&w=majority", { useNewUrlParser: true })
-.then(client => socketListener(io, client.db('game-3000')))
+MongoClient.connect(db.uri, { useNewUrlParser: true })
+.then(client => socketListener(io, client.db(db.name)))
 
 server.listen(port, () => console.log(`Listening on port ${port}`))

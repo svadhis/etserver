@@ -1,11 +1,14 @@
+// Script to initialize and populate database
+
+const db = require("./db-data")
+
 const queryDb = require("./methods/queryDb")
 const problems = require("./database/problems")
 
 const MongoClient = require("mongodb").MongoClient
 
-// "mongodb://localhost:27017"
-MongoClient.connect("mongodb+srv://g3k:6VSa7J6pTCsNEfyC@cluster0-jge1t.mongodb.net/test?retryWrites=true&w=majority", { useNewUrlParser: true })
-.then(client => queryDb(client.db('game-3000'), {
+MongoClient.connect(db.uri, { useNewUrlParser: true })
+.then(client => queryDb(client.db(db.name), {
     collection: 'problems',
     type: 'insertMany',
     filter: problems,

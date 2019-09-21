@@ -18,7 +18,7 @@ const shuffle = array => {
 	}
 
 	return array
-  }
+}
 
 module.exports = async (io, db) => {
 
