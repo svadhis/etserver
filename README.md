@@ -1,5 +1,7 @@
 # SERVER-3000
 
+This is the server to run [GAME-3000](https://github.com/svadhis/game-3000)
+
 ### Getting started
 
  - Edit database/config/db.js with your mongo db details or set env variables 
