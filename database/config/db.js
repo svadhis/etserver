@@ -1,8 +1,8 @@
 // Set db here
 
 const db = {
-    uri: 'mongodb+srv://g3k:6VSa7J6pTCsNEfyC@cluster0-jge1t.mongodb.net/test?retryWrites=true&w=majority',
-    name: 'game-3000'
+    uri: process.env.DB_URI || 'mongodb+srv://{DB_USER}:{USER_PASSWORD}@{DB_ADDRESS}/test?retryWrites=true&w=majority',
+    name: process.env.DB_NAME || '{DB_NAME}'
 }
 
 module.exports = db
