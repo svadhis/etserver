@@ -62,7 +62,7 @@ module.exports = async (io, db) => {
                     solutions: {},
                     results: {},
                     voted: 0,
-                    instructions: true,
+                    instructions: false,
                     subtitles: true,
                     count: 0,
                     loaded: 0
