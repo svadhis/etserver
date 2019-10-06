@@ -100,10 +100,11 @@ module.exports = async (io, db) => {
                 players.forEach(player => {
                     if (player.name === data.player) {
                         playerExists = 1
+                        console.log(disconnected)
                         disconnected.forEach((room, i) => {
                             if (room.number === data.room && room.name === data.player) {                           
                                 playerDisconnected = 1
-                                disconnected.splice[i, 1]
+                                disconnected.splice(i, 1)
                             }
                         })  
                     }
@@ -415,15 +416,8 @@ module.exports = async (io, db) => {
         // Client disconnects
         socket.on("disconnect", () => {
 
-            if (socket.room) {
-                disconnected.push(socket.room)
-
-                io.to(socket.room).emit('flash', {
-                    target: 'owner',
-                    type: 'warning',
-                    message: socket.name + " s'est deconnecté"
-                })
-            }
+            if (socket.room) { disconnected.push({number: socket.room, name: socket.name}) }   
+            
             console.log("Client disconnected")
         })
 
